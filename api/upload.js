@@ -2,7 +2,7 @@ import { formidable } from 'formidable';
 import pdf from 'pdf-parse';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import fs from 'fs-extra';
+import { promises as fs } from 'fs'; // Corrigido para usar o 'fs' nativo
 
 // Desativa o parser de corpo padrão da Vercel
 export const config = {
@@ -84,5 +84,7 @@ export default async function handler(request, response) {
         return response.status(500).json({ message: 'Ocorreu um erro no servidor ao processar o ficheiro.', error: error.message });
     }
 }
+
+
 
 
