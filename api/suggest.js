@@ -1,36 +1,64 @@
-// api/suggest.js - Função Serverless para a Vercel
+// Define o manipulador da função serverless, compatível com a Vercel
+export default async function handler(request, response) {
+    // Permite que a sua aplicação local comunique com este servidor (CORS)
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-// Esta função simula uma resposta da IA.
-// Ela será o nosso "cérebro" na nuvem.
-export default function handler(request, response) {
-  // Configura os cabeçalhos para permitir que a sua aplicação local
-  // se comunique com este servidor (CORS).
-  response.setHeader('Access-Control-Allow-Credentials', true);
-  response.setHeader('Access-Control-Allow-Origin', '*'); // Permite qualquer origem
-  response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  response.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+    // Responde a pedidos de 'pre-flight' do navegador
+    if (request.method === 'OPTIONS') {
+        return response.status(200).end();
+    }
 
-  // A Vercel precisa de uma resposta para o método OPTIONS
-  if (request.method === 'OPTIONS') {
-    response.status(200).end();
-    return;
-  }
+    // Garante que apenas pedidos POST são processados
+    if (request.method !== 'POST') {
+        return response.status(405).json({ message: 'Método não permitido.' });
+    }
 
-  // Apenas responde a pedidos POST
-  if (request.method === 'POST') {
-    // No futuro, aqui iremos ler os dados do paciente e dos livros.
-    // Por agora, apenas devolvemos uma sugestão fixa para testar.
-    const mockSuggestion = {
-      suggestion: '150g de Salmão, filé, grelhado com 200g de Batata, doce, cozida e salada de Alface, crespa, crua à vontade.',
-    };
-    
-    // Envia a sugestão como uma resposta JSON
-    response.status(200).json(mockSuggestion);
-  } else {
-    // Se não for POST, devolve um erro.
-    response.status(405).send({ error: 'Método não permitido' });
-  }
+    try {
+        // 1. Obter a sua chave de API secreta das variáveis de ambiente da Vercel
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("A chave de API do Gemini não foi configurada no servidor.");
+        }
+
+        // 2. Definir o modelo de IA e o URL da API
+        const model = 'gemini-1.5-flash-preview-0514';
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        // 3. Criar o pedido (prompt) para a IA
+        const prompt = "Aja como um nutricionista especialista. Sugira um almoço saudável e balanceado com aproximadamente 500 calorias. Descreva a refeição, os seus componentes e justifique brevemente por que é uma boa escolha. Formate a resposta de forma clara e concisa.";
+
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }]
+        };
+
+        // 4. Chamar a API da Google
+        const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!apiResponse.ok) {
+            const errorBody = await apiResponse.text();
+            console.error("Erro da API Gemini:", errorBody);
+            throw new Error(`A chamada à API Gemini falhou: ${apiResponse.statusText}`);
+        }
+
+        const data = await apiResponse.json();
+        
+        // 5. Extrair o texto da resposta da IA
+        // A resposta pode vir em partes, então juntamo-las.
+        const suggestionText = data.candidates[0].content.parts.map(part => part.text).join("");
+
+        // 6. Enviar a sugestão de volta para a sua aplicação local
+        return response.status(200).json({ suggestion: suggestionText });
+
+    } catch (error) {
+        console.error("Erro no servidor:", error.message);
+        return response.status(500).json({ message: 'Ocorreu um erro interno no servidor.', error: error.message });
+    }
 }
+
+
