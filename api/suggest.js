@@ -22,8 +22,8 @@ export default async function handler(request, response) {
             throw new Error("A chave de API do Gemini não foi configurada no servidor.");
         }
 
-        // 2. Definir o modelo de IA e o URL da API
-        const model = 'gemini-1.5-flash-preview-0514';
+        // 2. Definir o modelo de IA e o URL da API (MODELO CORRIGIDO)
+        const model = 'gemini-2.5-flash-preview-05-20'; // CORREÇÃO: Usar o modelo correto e atual
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
         // 3. Criar o pedido (prompt) para a IA
@@ -43,14 +43,14 @@ export default async function handler(request, response) {
         if (!apiResponse.ok) {
             const errorBody = await apiResponse.text();
             console.error("Erro da API Gemini:", errorBody);
-            throw new Error(`A chamada à API Gemini falhou: ${apiResponse.statusText}`);
+            // Retorna uma mensagem de erro mais específica para o cliente
+            throw new Error(`A chamada à API Gemini falhou com status ${apiResponse.status}: ${apiResponse.statusText}`);
         }
 
         const data = await apiResponse.json();
         
-        // 5. Extrair o texto da resposta da IA
-        // A resposta pode vir em partes, então juntamo-las.
-        const suggestionText = data.candidates[0].content.parts.map(part => part.text).join("");
+        // 5. Extrair o texto da resposta da IA de forma segura
+        const suggestionText = data.candidates?.[0]?.content?.parts?.map(part => part.text).join("") || "Não foi possível gerar uma sugestão a partir da resposta da API.";
 
         // 6. Enviar a sugestão de volta para a sua aplicação local
         return response.status(200).json({ suggestion: suggestionText });
@@ -60,5 +60,7 @@ export default async function handler(request, response) {
         return response.status(500).json({ message: 'Ocorreu um erro interno no servidor.', error: error.message });
     }
 }
+
+
 
 
