@@ -1,9 +1,12 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { Pinecone } = require("@pinecone-database/pinecone");
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
     // Adicionado para lidar com a verificação de CORS do navegador
     if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-response-type');
         return res.status(200).end();
     }
     
@@ -53,5 +56,5 @@ export default async function handler(req, res) {
         console.error('Error in query handler:', error);
         res.status(500).json({ error: error.message });
     }
-}
+};
 
