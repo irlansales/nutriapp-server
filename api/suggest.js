@@ -1,65 +1,73 @@
-// Define o manipulador da função serverless, compatível com a Vercel
+import { Pinecone } from '@pinecone-database/pinecone';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Inicializa os clientes das APIs
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const pinecone = new Pinecone({
+    apiKey: process.env.PINECONE_API_KEY,
+});
+const index = pinecone.index('nutriapp-knowledge');
+const generationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-preview-0514" });
+const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+
 export default async function handler(request, response) {
-    // Permite que a sua aplicação local comunique com este servidor (CORS)
+    // Configurações de CORS
     response.setHeader('Access-Control-Allow-Origin', '*');
     response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    // Responde a pedidos de 'pre-flight' do navegador
-    if (request.method === 'OPTIONS') {
-        return response.status(200).end();
-    }
-
-    // Garante que apenas pedidos POST são processados
-    if (request.method !== 'POST') {
-        return response.status(405).json({ message: 'Método não permitido.' });
-    }
+    if (request.method === 'OPTIONS') return response.status(200).end();
+    if (request.method !== 'POST') return response.status(405).json({ message: 'Método não permitido.' });
 
     try {
-        // 1. Obter a sua chave de API secreta das variáveis de ambiente da Vercel
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            throw new Error("A chave de API do Gemini não foi configurada no servidor.");
-        }
+        const query = "Sugira um almoço saudável com cerca de 500 calorias";
 
-        // 2. Definir o modelo de IA e o URL da API (MODELO CORRIGIDO)
-        const model = 'gemini-2.5-flash-preview-05-20'; // CORREÇÃO: Usar o modelo correto e atual
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        // 1. Criar embedding para a pergunta
+        const queryEmbeddingResult = await embeddingModel.embedContent({ content: query, task_type: "RETRIEVAL_QUERY" });
+        const queryEmbedding = queryEmbeddingResult.embedding.values;
 
-        // 3. Criar o pedido (prompt) para a IA
-        const prompt = "Aja como um nutricionista especialista. Sugira um almoço saudável e balanceado com aproximadamente 500 calorias. Descreva a refeição, os seus componentes e justifique brevemente por que é uma boa escolha. Formate a resposta de forma clara e concisa.";
-
-        const payload = {
-            contents: [{ parts: [{ text: prompt }] }]
-        };
-
-        // 4. Chamar a API da Google
-        const apiResponse = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+        // 2. Pesquisar no Pinecone por contexto relevante
+        const queryResponse = await index.namespace('pdf-content').query({
+            vector: queryEmbedding,
+            topK: 3, // Obter os 3 pedaços de texto mais relevantes
+            includeMetadata: true,
         });
 
-        if (!apiResponse.ok) {
-            const errorBody = await apiResponse.text();
-            console.error("Erro da API Gemini:", errorBody);
-            // Retorna uma mensagem de erro mais específica para o cliente
-            throw new Error(`A chamada à API Gemini falhou com status ${apiResponse.status}: ${apiResponse.statusText}`);
+        // 3. Extrair o texto dos metadados
+        const context = queryResponse.matches.map(match => match.metadata.text).join("\n\n");
+        
+        if (queryResponse.matches.length === 0) {
+            return response.status(200).json({ 
+                suggestion: "Não encontrei informação relevante na base de conhecimento para responder a esta pergunta. Por favor, faça o upload de um PDF com o conteúdo desejado.",
+                sources: []
+            });
         }
 
-        const data = await apiResponse.json();
+        // 4. Construir o prompt final com o contexto do PDF
+        const prompt = `
+            Você é um especialista em nutrição. Com base nos seguintes excertos de um documento técnico:
+            ---
+            ${context}
+            ---
+            Responda à seguinte pergunta: ${query}
+        `;
         
-        // 5. Extrair o texto da resposta da IA de forma segura
-        const suggestionText = data.candidates?.[0]?.content?.parts?.map(part => part.text).join("") || "Não foi possível gerar uma sugestão a partir da resposta da API.";
+        // 5. Gerar a resposta final com o modelo de linguagem
+        const result = await generationModel.generateContent(prompt);
+        const suggestionText = result.response.text();
 
-        // 6. Enviar a sugestão de volta para a sua aplicação local
-        return response.status(200).json({ suggestion: suggestionText });
+        // 6. Enviar a sugestão E as fontes utilizadas
+        return response.status(200).json({ 
+            suggestion: suggestionText,
+            sources: queryResponse.matches.map(match => match.metadata.text) // Envia os excertos usados
+        });
 
     } catch (error) {
-        console.error("Erro no servidor:", error.message);
-        return response.status(500).json({ message: 'Ocorreu um erro interno no servidor.', error: error.message });
+        console.error("Erro no servidor (suggest):", error);
+        return response.status(500).json({ message: 'Ocorreu um erro interno no servidor ao gerar a sugestão.', error: error.message });
     }
 }
+
+
 
 
 
