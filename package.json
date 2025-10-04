@@ -1,7 +1,7 @@
 {
-  "name": "nutri-ai-server",
+  "name": "nutriapp-server",
   "version": "1.0.0",
-  "description": "Servidor para o NutriAI",
+  "description": "Servidor para o NutriApp",
   "main": "index.js",
   "type": "module",
   "dependencies": {
