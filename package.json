@@ -6,10 +6,7 @@
   "type": "module",
   "dependencies": {
     "@google/generative-ai": "^0.2.1",
-    "@pinecone-database/pinecone": "^2.0.1",
-    "formidable": "^3.5.1",
-    "pdf-parse": "^1.1.1"
+    "@pinecone-database/pinecone": "^2.0.1"
   }
 }
-
 
