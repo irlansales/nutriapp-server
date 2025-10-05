@@ -32,7 +32,6 @@ export default async function handler(request, response) {
             includeMetadata: true,
         });
 
-        // 3. Extrair o texto dos metadados
         const context = queryResponse.matches.map(match => match.metadata.text).join("\n\n");
         
         if (queryResponse.matches.length === 0) {
@@ -42,7 +41,6 @@ export default async function handler(request, response) {
             });
         }
 
-        // 4. Construir o prompt final com o contexto do PDF
         const prompt = `
             Você é um especialista em nutrição. Com base nos seguintes excertos de um documento técnico:
             ---
@@ -51,14 +49,12 @@ export default async function handler(request, response) {
             Responda à seguinte pergunta: ${query}
         `;
         
-        // 5. Gerar a resposta final com o modelo de linguagem
         const result = await generationModel.generateContent(prompt);
         const suggestionText = result.response.text();
 
-        // 6. Enviar a sugestão E as fontes utilizadas
         return response.status(200).json({ 
             suggestion: suggestionText,
-            sources: queryResponse.matches.map(match => match.metadata.text) // Envia os excertos usados
+            sources: queryResponse.matches.map(match => match.metadata.text)
         });
 
     } catch (error) {
@@ -66,6 +62,7 @@ export default async function handler(request, response) {
         return response.status(500).json({ message: 'Ocorreu um erro interno no servidor ao gerar a sugestão.', error: error.message });
     }
 }
+
 
 
 
