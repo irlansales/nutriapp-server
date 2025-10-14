@@ -25,14 +25,13 @@ export default async function handler(req, res) {
         const queryEmbedding = await embeddingModel.embedContent(query);
         
         const queryResponse = await index.query({
-            topK: 5,
+            topK: 3, // Reduzido para 3 para ser mais focado
             vector: queryEmbedding.embedding.values,
             includeMetadata: true,
         });
 
         const context = queryResponse.matches.map(match => match.metadata.text).join('\\n\\n---\\n\\n');
 
-        // CORREÇÃO: Usando o modelo 'gemini-pro' que é estável e compatível.
         const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
@@ -45,15 +44,12 @@ export default async function handler(req, res) {
         const response = await result.response;
         const text = response.text();
         
-        res.status(200).json({ response: text });
+        // **MUDANÇA PRINCIPAL: Retornando também o contexto utilizado**
+        res.status(200).json({ response: text, retrievedContext: context });
 
     } catch (error) {
         console.error('Error in query handler:', error);
         res.status(500).json({ error: error.message });
     }
 }
-
-
-
-
 
