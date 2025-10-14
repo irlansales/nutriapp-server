@@ -15,7 +15,21 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { query, patientContext } = req.body;
+        const { query, patientContext, complexity } = req.body;
+
+        // Define o número de trechos a buscar com base na complexidade
+        let topKValue;
+        switch (complexity) {
+            case 'fast':
+                topKValue = 1;
+                break;
+            case 'detailed':
+                topKValue = 5;
+                break;
+            default: // balanced
+                topKValue = 3;
+                break;
+        }
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
@@ -25,14 +39,14 @@ export default async function handler(req, res) {
         const queryEmbedding = await embeddingModel.embedContent(query);
         
         const queryResponse = await index.query({
-            topK: 3, // Reduzido para 3 para ser mais focado
+            topK: topKValue,
             vector: queryEmbedding.embedding.values,
             includeMetadata: true,
         });
 
         const context = queryResponse.matches.map(match => match.metadata.text).join('\\n\\n---\\n\\n');
 
-        const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const generationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
         let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
         
@@ -44,7 +58,6 @@ export default async function handler(req, res) {
         const response = await result.response;
         const text = response.text();
         
-        // **MUDANÇA PRINCIPAL: Retornando também o contexto utilizado**
         res.status(200).json({ response: text, retrievedContext: context });
 
     } catch (error) {
