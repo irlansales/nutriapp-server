@@ -2,7 +2,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Pinecone } from "@pinecone-database/pinecone";
 
 export default async function handler(req, res) {
-    // Lida com a verificação de CORS (preflight request)
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-response-type');
@@ -44,4 +43,6 @@ export default async function handler(req, res) {
         res.status(500).json({ error: error.message });
     }
 }
+
+
 
