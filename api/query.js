@@ -14,7 +14,10 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { query, patientContext } = req.body;
+        const { query, patientContext, sources } = req.body;
+        if (!sources || sources.length === 0) {
+            return res.status(400).json({ error: 'Pelo menos uma fonte de conhecimento deve ser selecionada.' });
+        }
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
@@ -27,18 +30,25 @@ export default async function handler(req, res) {
             topK: 3,
             vector: queryEmbedding.embedding.values,
             includeMetadata: true,
+            filter: { 'source': { '$in': sources } }
         });
 
-        const context = queryResponse.matches.map(match => match.metadata.text).join('\\n\\n---\\n\\n');
+        const context = queryResponse.matches.map(match => `Fonte: ${match.metadata.source}\\nTrecho: ${match.metadata.text}`).join('\\n\\n---\\n\\n');
 
-        const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const generationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
-        let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
-        
-        if (req.headers['x-response-type'] === 'json') {
-            prompt += `\\nResponda estritamente com um objeto JSON com a chave \"dietPlan\" contendo um array de refeições, onde cada refeição tem \"name\" e \"foods\" (um array de objetos com \"name\" e \"quantity\").`;
-        }
+        // **PROMPT ATUALIZADO E MAIS RÍGIDO**
+        let prompt = `Você é um assistente de IA. Sua única tarefa é responder à pergunta do usuário baseando-se ESTRITAMENTE e EXCLUSIVAMENTE no CONHECIMENTO DE REFERÊNCIA fornecido abaixo.
+        Se a resposta não estiver no conhecimento fornecido, você DEVE responder EXATAMENTE com a frase "Não encontrei a resposta no material fornecido.".
+        Não use nenhum conhecimento prévio. Não tente adivinhar ou inferir a resposta.
 
+        CONHECIMENTO DE REFERÊNCIA:
+        ---
+        ${context || "Nenhum conhecimento relevante foi encontrado."}
+        ---
+
+        Pergunta do usuário: \"${query}\"`;
+        
         const result = await generationModel.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -50,6 +60,8 @@ export default async function handler(req, res) {
         res.status(500).json({ error: error.message });
     }
 }
+
+
 
 
 
