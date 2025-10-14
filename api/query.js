@@ -1,12 +1,12 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { Pinecone } = require("@pinecone-database/pinecone");
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Pinecone } from "@pinecone-database/pinecone";
 
-module.exports = async (req, res) => {
-    // Adicionado para lidar com a verificação de CORS do navegador
+export default async function handler(req, res) {
+    // Lida com a verificação de CORS (preflight request)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-response-type');
     if (req.method === 'OPTIONS') {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-response-type');
         return res.status(200).end();
     }
     
@@ -17,18 +17,13 @@ module.exports = async (req, res) => {
     try {
         const { query, patientContext } = req.body;
 
-        // Initialize clients
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const pinecone = new Pinecone({
-            apiKey: process.env.PINECONE_API_KEY,
-        });
+        const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
         const index = pinecone.index('nutriapp-knowledge');
 
-        // 1. Create embedding for the user's query
         const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004"});
         const queryEmbedding = await embeddingModel.embedContent(query);
         
-        // 2. Query Pinecone to get relevant context
         const queryResponse = await index.query({
             topK: 5,
             vector: queryEmbedding.embedding.values,
@@ -37,10 +32,9 @@ module.exports = async (req, res) => {
 
         const context = queryResponse.matches.map(match => match.metadata.text).join('\\n\\n---\\n\\n');
 
-        // 3. Call Gemini with the context-rich prompt
         const generationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
-        let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação do usuário: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO DE REFERÊNCIA para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado (texto ou JSON).`;
+        let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
         
         if (req.headers['x-response-type'] === 'json') {
             prompt += `\\nResponda estritamente com um objeto JSON com a chave \"dietPlan\" contendo um array de refeições, onde cada refeição tem \"name\" e \"foods\" (um array de objetos com \"name\" e \"quantity\").`;
@@ -56,5 +50,7 @@ module.exports = async (req, res) => {
         console.error('Error in query handler:', error);
         res.status(500).json({ error: error.message });
     }
-};
+}
+
+
 
