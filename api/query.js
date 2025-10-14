@@ -1,65 +1,72 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Pinecone } from "@pinecone-database/pinecone";
 
 export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-response-type');
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
-    }
+    // Lida com a verificação de CORS (preflight request)
+res.setHeader('Access-Control-Allow-Origin', '*');
+res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-response-type');
+@@ -15,14 +14,7 @@ export default async function handler(req, res) {
+}
 
-    try {
-        const { query, patientContext, sources } = req.body;
-        if (!sources || sources.length === 0) {
-            return res.status(400).json({ error: 'Pelo menos uma fonte de conhecimento deve ser selecionada.' });
+try {
+        const { query, patientContext, complexity, stream } = req.body;
+
+        let topKValue;
+        switch (complexity) {
+            case 'fast': topKValue = 1; break;
+            case 'detailed': topKValue = 5; break;
+            default: topKValue = 3; break;
         }
+        const { query, patientContext } = req.body;
 
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
-        const index = pinecone.index('nutriapp-knowledge');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+@@ -32,12 +24,13 @@ export default async function handler(req, res) {
+const queryEmbedding = await embeddingModel.embedContent(query);
 
-        const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004"});
-        const queryEmbedding = await embeddingModel.embedContent(query);
-        
-        const queryResponse = await index.query({
+const queryResponse = await index.query({
+            topK: topKValue,
             topK: 3,
-            vector: queryEmbedding.embedding.values,
-            includeMetadata: true,
-            filter: { 'source': { '$in': sources } }
-        });
+vector: queryEmbedding.embedding.values,
+includeMetadata: true,
+});
 
-        const context = queryResponse.matches.map(match => `Fonte: ${match.metadata.source}\\nTrecho: ${match.metadata.text}`).join('\\n\\n---\\n\\n');
+const context = queryResponse.matches.map(match => match.metadata.text).join('\\n\\n---\\n\\n');
 
-        const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        
-        // **PROMPT ATUALIZADO E MAIS RÍGIDO**
-        let prompt = `Você é um assistente de IA. Sua única tarefa é responder à pergunta do usuário baseando-se ESTRITAMENTE e EXCLUSIVAMENTE no CONHECIMENTO DE REFERÊNCIA fornecido abaixo.
-        Se a resposta não estiver no conhecimento fornecido, você DEVE responder EXATAMENTE com a frase "Não encontrei a resposta no material fornecido.".
-        Não use nenhum conhecimento prévio. Não tente adivinhar ou inferir a resposta.
+const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        CONHECIMENTO DE REFERÊNCIA:
-        ---
-        ${context || "Nenhum conhecimento relevante foi encontrado."}
-        ---
+let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
+@@ -46,19 +39,11 @@ export default async function handler(req, res) {
+prompt += `\\nResponda estritamente com um objeto JSON com a chave \"dietPlan\" contendo um array de refeições, onde cada refeição tem \"name\" e \"foods\" (um array de objetos com \"name\" e \"quantity\").`;
+}
 
-        Pergunta do usuário: \"${query}\"`;
-        
+        if (stream) {
+            const result = await generationModel.generateContentStream(prompt);
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            for await (const chunk of result.stream) {
+                res.write(chunk.text());
+            }
+            res.end();
+        } else {
+            const result = await generationModel.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+            res.status(200).json({ response: text, retrievedContext: context });
+        }
         const result = await generationModel.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
         
         res.status(200).json({ response: text, retrievedContext: context });
 
-    } catch (error) {
-        console.error('Error in query handler:', error);
-        res.status(500).json({ error: error.message });
-    }
-}
+} catch (error) {
+console.error('Error in query handler:', error);
+@@ -70,3 +55,5 @@ export default async function handler(req, res) {
+
+
+
+
+
 
 
 
