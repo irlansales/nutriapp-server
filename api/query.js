@@ -33,7 +33,7 @@ export default async function handler(req, res) {
         const context = queryResponse.matches.map(match => match.metadata.text).join('\\n\\n---\\n\\n');
 
         // CORREÇÃO: Usando o modelo 'gemini-pro' que é estável e compatível.
-        const generationModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
         
