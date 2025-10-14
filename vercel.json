@@ -1,0 +1,14 @@
+{
+    "headers": [
+        {
+            "source": "/api/(.*)",
+            "headers": [
+                { "key": "Access-control-Allow-Credentials", "value": "true" },
+                { "key": "Access-control-Allow-Origin", "value": "*" },
+                { "key": "Access-control-Allow-Methods", "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
+                { "key": "Access-control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-response-type" }
+            ]
+        }
+    ]
+}
+
