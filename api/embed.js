@@ -1,6 +1,15 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Pinecone } from "@pinecone-database/pinecone";
 
+// Função para "limpar" o nome do ficheiro e torná-lo seguro para o ID
+function sanitizeForId(text) {
+    return text
+        .normalize("NFD") // Separa acentos dos caracteres
+        .replace(/[\u0300-\u036f]/g, "") // Remove os acentos
+        .replace(/[^a-zA-Z0-9-._]/g, '_') // Substitui caracteres não seguros por _
+        .substring(0, 50); // Limita o tamanho do nome
+}
+
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -14,7 +23,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { chunk, sourceName } = req.body;
+        const { chunk, sourceName, index: chunkIndex } = req.body;
 
         if (!chunk || !sourceName) {
             return res.status(400).json({ error: 'Chunk e sourceName são obrigatórios.' });
@@ -27,22 +36,27 @@ export default async function handler(req, res) {
         const model = genAI.getGenerativeModel({ model: "text-embedding-004"});
         const result = await model.embedContent(chunk);
         const embedding = result.embedding.values;
+        
+        // Usa o nome do ficheiro "limpo" para o ID
+        const sanitizedSourceName = sanitizeForId(sourceName);
 
         await index.upsert([
             {
-                id: `chunk-${sourceName}-${Math.random().toString(36).substring(7)}`,
+                id: `chunk-${sanitizedSourceName}-${chunkIndex}-${Math.random().toString(36).substring(7)}`,
                 values: embedding,
-                metadata: { text: chunk, source: sourceName },
+                metadata: { text: chunk, source: sourceName }, // Guarda o nome original no metadata
             },
         ]);
 
-        res.status(200).json({ success: true, message: `Chunk from ${sourceName} processed.` });
+        res.status(200).json({ success: true, message: `Chunk ${chunkIndex} from ${sourceName} processed.` });
 
     } catch (error) {
         console.error('Error processing chunk:', error);
         res.status(500).json({ error: error.message });
     }
 }
+
+
 
 
 
