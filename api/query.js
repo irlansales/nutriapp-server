@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
         const context = queryResponse.matches.map(match => `Fonte: ${match.metadata.source}\\nTrecho: ${match.metadata.text}`).join('\\n\\n---\\n\\n');
 
-        const generationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
         // **PROMPT ATUALIZADO E MAIS RÍGIDO**
         let prompt = `Você é um assistente de IA especialista em nutrição. Sua principal diretriz é a honestidade e a precisão.
