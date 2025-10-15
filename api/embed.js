@@ -14,10 +14,10 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { chunk, index: chunkIndex } = req.body;
+        const { chunk, sourceName } = req.body;
 
-        if (!chunk) {
-            return res.status(400).json({ error: 'Text chunk is required.' });
+        if (!chunk || !sourceName) {
+            return res.status(400).json({ error: 'Chunk e sourceName são obrigatórios.' });
         }
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -30,19 +30,21 @@ export default async function handler(req, res) {
 
         await index.upsert([
             {
-                id: `chunk-${Date.now()}-${chunkIndex}`,
+                id: `chunk-${sourceName}-${Math.random().toString(36).substring(7)}`,
                 values: embedding,
-                metadata: { text: chunk },
+                metadata: { text: chunk, source: sourceName },
             },
         ]);
 
-        res.status(200).json({ success: true, message: `Chunk ${chunkIndex} processed.` });
+        res.status(200).json({ success: true, message: `Chunk from ${sourceName} processed.` });
 
     } catch (error) {
         console.error('Error processing chunk:', error);
         res.status(500).json({ error: error.message });
     }
 }
+
+
 
 
 
