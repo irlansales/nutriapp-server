@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Pinecone } from "@pinecone-database/pinecone";
 
 export default async function handler(req, res) {
+    // Lida com a verificação de CORS (preflight request)
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-response-type');
@@ -35,9 +36,25 @@ export default async function handler(req, res) {
 
         const context = queryResponse.matches.map(match => `Fonte: ${match.metadata.source}\\nTrecho: ${match.metadata.text}`).join('\\n\\n---\\n\\n');
 
-        const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const generationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
-        let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
+        // **PROMPT ATUALIZADO E MAIS RÍGIDO**
+        let prompt = `Você é um assistente de IA especialista em nutrição. Sua principal diretriz é a honestidade e a precisão.
+        Sua tarefa é responder à pergunta do usuário baseando-se ESTRITAMENTE e EXCLUSIVAMENTE no CONHECIMENTO DE REFERÊNCIA fornecido abaixo.
+
+        REGRAS IMPORTANTES:
+        1. Se a resposta para a pergunta do usuário não estiver explicitamente no CONHECIMENTO DE REFERÊNCIA, você DEVE responder EXATAMENTE com a frase "Não encontrei uma resposta para esta pergunta no material fornecido.".
+        2. NÃO use nenhum conhecimento prévio ou geral que você tenha sobre o assunto. A sua única fonte de verdade é o CONHECIMENTO DE REFERÊNCIA.
+        3. A única exceção a esta regra é para perguntas de conhecimento universalmente óbvio e não técnico (ex: "Qual a cor do céu?", "Quanto é 2+2?"). Para qualquer pergunta sobre nutrição, saúde, ou qualquer outro domínio específico, a Regra 1 se aplica rigorosamente.
+
+        CONHECIMENTO DE REFERÊNCIA:
+        ---
+        ${context || "Nenhum conhecimento relevante foi encontrado nas fontes selecionadas."}
+        ---
+
+        Dados do paciente (para contexto, se relevante): ${patientContext}
+
+        Pergunta do usuário: \"${query}\"`;
         
         const result = await generationModel.generateContent(prompt);
         const response = await result.response;
@@ -50,9 +67,4 @@ export default async function handler(req, res) {
         res.status(500).json({ error: error.message });
     }
 }
-
-
-
-
-
 
