@@ -38,21 +38,19 @@ export default async function handler(req, res) {
 
         const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
-        // **PROMPT ATUALIZADO E MAIS RÍGIDO**
-        let prompt = `Você é um assistente de IA especialista em nutrição. Sua principal diretriz é a honestidade e a precisão.
-        Sua tarefa é responder à pergunta do usuário baseando-se ESTRITAMENTE e EXCLUSIVAMENTE no CONHECIMENTO DE REFERÊNCIA fornecido abaixo.
+        // **PROMPT ATUALIZADO COM LÓGICA DE FALLBACK**
+        let prompt = `Você é um assistente de IA especialista. Sua tarefa é responder à pergunta do usuário usando o CONHECIMENTO DE REFERÊNCIA fornecido.
 
-        REGRAS IMPORTANTES:
-        1. Se a resposta para a pergunta do usuário não estiver explicitamente no CONHECIMENTO DE REFERÊNCIA, você DEVE responder EXATAMENTE com a frase "Não encontrei uma resposta para esta pergunta no material fornecido.".
-        2. NÃO use nenhum conhecimento prévio ou geral que você tenha sobre o assunto. A sua única fonte de verdade é o CONHECIMENTO DE REFERÊNCIA.
-        3. A única exceção a esta regra é para perguntas de conhecimento universalmente óbvio e não técnico (ex: "Qual a cor do céu?", "Quanto é 2+2?"). Para qualquer pergunta sobre nutrição, saúde, ou qualquer outro domínio específico, a Regra 1 se aplica rigorosamente.
+        REGRAS DE COMPORTAMENTO:
+        1.  **Resposta Direta:** Se o CONHECIMENTO DE REFERÊNCIA contém uma resposta direta para a pergunta do usuário, responda-a de forma clara e completa.
+        2.  **Resposta Parcial (Fallback):** Se o CONHECIMENTO DE REFERÊNCIA não contém a resposta para a pergunta específica, mas contém informações sobre um tópico geral ou relacionado na pergunta, sua resposta DEVE seguir este formato: "Não encontrei informações específicas sobre [TERMO ESPECÍFICO], mas encontrei o seguinte sobre [TÓPICO GERAL]: [RESPOSTA SOBRE O TÓPICO GERAL]".
+        3.  **Sem Resposta:** Se o CONHECIMENTO DE REFERÊNCIA não contém absolutamente nenhuma informação relevante para a pergunta, responda EXATAMENTE com a frase: "Não encontrei uma resposta para esta pergunta no material fornecido.".
+        4.  **Proibição:** Não use nenhum conhecimento prévio ou geral que você tenha, a menos que a pergunta seja sobre um facto universalmente óbvio (ex: "qual a cor do céu?").
 
         CONHECIMENTO DE REFERÊNCIA:
         ---
         ${context || "Nenhum conhecimento relevante foi encontrado nas fontes selecionadas."}
         ---
-
-        Dados do paciente (para contexto, se relevante): ${patientContext}
 
         Pergunta do usuário: \"${query}\"`;
         
@@ -67,4 +65,6 @@ export default async function handler(req, res) {
         res.status(500).json({ error: error.message });
     }
 }
+
+
 
