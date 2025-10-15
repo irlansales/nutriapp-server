@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         const queryEmbedding = await embeddingModel.embedContent(query);
         
         const queryResponse = await index.query({
-            topK: 3,
+            topK: 5, // Aumentamos para 5 para dar mais contexto para raciocínio
             vector: queryEmbedding.embedding.values,
             includeMetadata: true,
             filter: { 'source': { '$in': sources } }
@@ -38,19 +38,20 @@ export default async function handler(req, res) {
 
         const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
-        // **PROMPT ATUALIZADO COM LÓGICA DE FALLBACK**
-        let prompt = `Você é um assistente de IA especialista. Sua tarefa é responder à pergunta do usuário usando o CONHECIMENTO DE REFERÊNCIA fornecido.
+        // **PROMPT ATUALIZADO COM HIERARQUIA DE CONHECIMENTO**
+        let prompt = `Você é um assistente de IA especialista em nutrição. Sua tarefa é responder à pergunta do usuário.
 
         REGRAS DE COMPORTAMENTO:
-        1.  **Resposta Direta:** Se o CONHECIMENTO DE REFERÊNCIA contém uma resposta direta para a pergunta do usuário, responda-a de forma clara e completa.
-        2.  **Resposta Parcial (Fallback):** Se o CONHECIMENTO DE REFERÊNCIA não contém a resposta para a pergunta específica, mas contém informações sobre um tópico geral ou relacionado na pergunta, sua resposta DEVE seguir este formato: "Não encontrei informações específicas sobre [TERMO ESPECÍFICO], mas encontrei o seguinte sobre [TÓPICO GERAL]: [RESPOSTA SOBRE O TÓPICO GERAL]".
-        3.  **Sem Resposta:** Se o CONHECIMENTO DE REFERÊNCIA não contém absolutamente nenhuma informação relevante para a pergunta, responda EXATAMENTE com a frase: "Não encontrei uma resposta para esta pergunta no material fornecido.".
-        4.  **Proibição:** Não use nenhum conhecimento prévio ou geral que você tenha, a menos que a pergunta seja sobre um facto universalmente óbvio (ex: "qual a cor do céu?").
+        1.  **FONTE DA VERDADE:** Sua resposta deve ser primariamente baseada nos princípios, diretrizes e dados do **CONHECIMENTO DE REFERÊNCIA** fornecido. Se este conhecimento contradiz o seu conhecimento geral, a informação do CONHECIMENTO DE REFERÊNCIA está **sempre correta**.
+        2.  **RACIOCÍNIO E APLICAÇÃO:** Você pode e deve usar o seu conhecimento geral (cálculos, conhecimento sobre alimentos, estruturação de texto) para **aplicar, calcular e elaborar** sobre os conceitos encontrados no CONHECIMENTO DE REFERÊNCIA. Por exemplo, se o conhecimento explica como calcular uma dieta, use essa fórmula para montar uma dieta, mesmo que o exemplo exato não esteja no texto.
+        3.  **HONESTIDADE:** Se o CONHECIMENTO DE REFERÊNCIA não contém nem mesmo os princípios básicos para responder a uma pergunta técnica (ex: a pergunta é sobre dietas e o livro é sobre carros), responda que não encontrou informação relevante no material fornecido. Não invente informações.
 
         CONHECIMENTO DE REFERÊNCIA:
         ---
         ${context || "Nenhum conhecimento relevante foi encontrado nas fontes selecionadas."}
         ---
+
+        Dados do paciente (para contexto): ${patientContext}
 
         Pergunta do usuário: \"${query}\"`;
         
@@ -65,6 +66,8 @@ export default async function handler(req, res) {
         res.status(500).json({ error: error.message });
     }
 }
+
+
 
 
 
