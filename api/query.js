@@ -38,8 +38,13 @@ export default async function handler(req, res) {
 
         const generationModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         
+        // PROMPT RESTAURADO PARA A VERSÃO ANTERIOR, MAIS FLEXÍVEL
         let prompt = `Aja como um nutricionista especialista. Responda à seguinte solicitação: \"${query}\".\\n\\nUse o seguinte CONHECIMENTO para basear sua resposta:\\n\\n---\\n${context}\\n---\\n\\nConsidere também os dados do paciente: ${patientContext}.\\n\\nSua resposta deve seguir o formato solicitado.`;
         
+        if (req.headers['x-response-type'] === 'json') {
+            prompt += `\\nResponda estritamente com um objeto JSON com a chave \"dietPlan\" contendo um array de refeições, onde cada refeição tem \"name\" e \"foods\" (um array de objetos com \"name\" e \"quantity\").`;
+        }
+
         const result = await generationModel.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -51,6 +56,4 @@ export default async function handler(req, res) {
         res.status(500).json({ error: error.message });
     }
 }
-
-
 
